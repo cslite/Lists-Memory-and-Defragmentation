@@ -3,15 +3,16 @@
 #include "list.h"
 
 int *list_seq;
+int lseq_size = 10;
 int next_list_num;
-int mem;
+int mem=160;
 
 void allocate_ram(int size){
 	set_ram(size);
 	int last_idx = ((mem/3)-1)*3;
-	list_seq = (int *)(calloc(mem/3,sizeof(int)));
+	list_seq = (int *)(calloc(lseq_size,sizeof(int)));
 	int i;
-	for(i=0;i<(mem/3);i++)
+	for(i=0;i<lseq_size;i++)
 		list_seq[i] = -1;
 	for(i=last_idx;i>=0;i-=3){
 		push(i);
@@ -19,26 +20,29 @@ void allocate_ram(int size){
 	next_list_num = 0;
 }
 
+void inc_lseq_size(){	//doubles the size of list_seq
+	list_seq = (int *)(realloc(list_seq,2*lseq_size*sizeof(int)));
+	for(int i=lseq_size;i<(2*lseq_size);i++){
+		list_seq[i] = -1;
+	}
+	lseq_size *= 2;
+}
+
 int get_head(int list_num){
-	if(list_num < (mem/3) && list_num < next_list_num){
+	if(list_num < next_list_num){
 		return list_seq[list_num];
 	}
 	else
 		return -2;	//error code is -2
 }
 
-int set_head(int list_num, int head){
-	if(list_num < (mem/3)){
-		list_seq[list_num] = head;
-		return 0;
-	}
-	else
-		return -1;
+void set_head(int list_num, int head){
+	list_seq[list_num] = head;
 }
 
 int main(){
-	printf("Enter the Array Length: ");
-	scanf("%d",&mem);
+	// printf("Enter the required Array Length (in terms of how many nodes, it can support): ");
+	// scanf("%d",&mem);
 	allocate_ram(mem);
 	int ch;	//ch is for choice
 	do{
@@ -58,19 +62,19 @@ int main(){
 		int lno,key,head,ct;
 		switch(ch){
 			case 1:
+				if(next_list_num >= lseq_size)	//growable list_seq
+					inc_lseq_size();
 				printf("The sequence number of the newly created list is %d\n",next_list_num);
 				printf("Enter key value to be inserted in the newly created list-%d:",next_list_num);
 				scanf("%d",&key);
 				head = newlist(key);
-				if(head == -1)
+				if(head == -1){
 					printf("FAILURE: MEMORY NOT AVAILABLE\n");
+				}
 				else{
-					if(set_head(next_list_num,head) != -1){
-						next_list_num++;
-						printf("SUCCESS\n");
-					}
-					else
-						printf("FAILURE: You have exceeded the list limit\n");
+					set_head(next_list_num,head);
+					next_list_num++;
+					printf("SUCCESS\n");
 				}
 				break;
 			case 2:
@@ -80,7 +84,7 @@ int main(){
 				scanf("%d",&key);
 				head = get_head(lno);
 				if(head == -2){
-					printf("FAILURE: NO SUCH LIST.");
+					printf("FAILURE: NO SUCH LIST. (A list should exist before you can insert into it)\n");
 				}
 				else{
 					head = insert(head,key);
@@ -127,10 +131,13 @@ int main(){
 					printf("Total Number of nodes in list %d are %d\n",lno,ct);
 				break;
 			case 6:
+				if(next_list_num==0)
+					printf("NO LISTS MADE SO FAR!");
 				for(lno = 0; lno<next_list_num;lno++){
 					printf("Elements of list-%d are:\n",lno);
 					display(get_head(lno));	
 				}
+				printf("\n");
 				break;
 			case 7:
 				displayFree();
