@@ -129,7 +129,7 @@ int delete(int head, int key){		//delete the first occurrence of key in the list
 }
 int count_nodes(int head){		//to count number of nodes of the given list
 	int ct = 0;
-	if(head < 0)
+	if(head < -1)
 		return -1;
 	for(int node = head; node != -1; node = get_next(node)){
 		ct++;
@@ -152,7 +152,8 @@ void display(int head){		//to display all nodes of the given list
 			printf("%d\n",get_prev(node));
 		else
 			printf("NIL\n");
-	}	
+	}
+
 	
 }
 void displayFree(){		//to display nodes of the free_list
