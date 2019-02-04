@@ -6,6 +6,37 @@
 int free_list = -1;
 int *ram;
 int ram_size;
+int *list_seq;	//array containing heads of the created lists.
+int lseq_size = 10;	//Max amount of list which the program can support (this will dynamically grow)
+int next_list_num;
+
+void inc_lseq_size(){	//doubles the size of list_seq (to dynamically increase the max no. of lists supported)
+	list_seq = (int *)(realloc(list_seq,2*lseq_size*sizeof(int)));
+	for(int i=lseq_size;i<(2*lseq_size);i++){
+		list_seq[i] = -1;
+	}
+	lseq_size *= 2;
+}
+
+int get_head(int list_num){		//function to get the head of given list
+	if(0 <= list_num && list_num < next_list_num){
+		return list_seq[list_num];
+	}
+	else
+		return -2;	//error code is -2
+}
+
+void set_head(int list_num, int head){		//function to set the head of the given list as given head
+	if(list_num >= lseq_size)	//growable list_seq
+		inc_lseq_size();
+	list_seq[list_num] = head;
+}
+
+int get_next_lno(){
+	return next_list_num;
+}
+
+
 
 int get_next(int node){		//get the address of next node
 	if(node!=-1)
@@ -39,6 +70,8 @@ void set_ram(int size){				//allocate ram (array) of given size
 	ram = (int *)(calloc(size,sizeof(int)));
 }
 
+
+
 void push(int node){
 	//to push an object to the free_list list
 	if(node==-1)	return;
@@ -59,6 +92,23 @@ int pop(){
 	}
 }
 
+void allocate_ram(int size){	//this function allocates the set amount of ram and initializes the list_seq
+	set_ram(size);
+	int last_idx = ((ram_size/3)-1)*3;
+	list_seq = (int *)(calloc(lseq_size,sizeof(int)));
+	int i;
+	for(i=0;i<lseq_size;i++)
+		list_seq[i] = -1;
+	for(i=last_idx;i>=0;i-=3){
+		push(i);
+	}
+	next_list_num = 0;
+	printf("NOTE:\n1. Current Configuration can handle at max %d nodes.\n",size/3); 
+	printf("(This can be changed by an optional command line argument, for example for 100 nodes run as ./exe 100)\n");
+	printf("2. No. of lists supported grows dynamically.\n");
+	printf("3. Valid Range for keys is from %d to %d.\n",INT_MIN+1,INT_MAX);
+}
+
 void insert_between(int node, int prev_node, int next_node){
 	set_next(node,next_node);
 	set_prev(node,prev_node);
@@ -76,43 +126,69 @@ int newlist(int key){		//create a new list with key as the first node's value an
 	return head;
 }
 
-int insert(int head, int key){		//insert the key in sorted order in list starting at head
+int createlist(int key){	//create a new list with key as the first node on next available list number
+	int head = newlist(key);
+	if(head == -1){
+		return -1;
+	}
+	else{
+		set_head(next_list_num,head);
+		next_list_num++;
+		return 0;
+	}
+}
+
+int insert(int lno, int key){		//insert the key in sorted order in list starting at head
+	int head = get_head(lno);
+	if(head == -2){		//When no such list exists
+		return -2;
+	}
 	int newnode = pop();
 	if(newnode == -1)		//no memory available
 		return -1;
 	set_key(newnode,key);
-	if(head==-1)		//if list was empty initially
-		return newnode;
+	if(head==-1)	{	//if list was empty initially
+		set_head(lno,newnode);
+		return 0;
+	}
 	else{
 		if(key <= get_key(head)){
 			insert_between(newnode,-1,head);	//insert at first position
 			head = newnode;
-			return head;
+			set_head(lno,head);
+			return 0;
 		}
 		int node;
 		for(node=head; get_next(node)!= -1;node=get_next(node)){
 			if(key > get_key(node) && key<= get_key(get_next(node))){
 				insert_between(newnode,node,get_next(node));	//insertion in between two nodes
-				return head;
+				set_head(lno,head);
+				return 0;
 			}
 		}
 		insert_between(newnode,node,-1);	//insertion at last position
-		return head;	
+		set_head(lno,head);
+		return 0;	
 	}
 }
 
 
 
-int delete(int head, int key){		//delete the first occurrence of key in the list starting at head
+int delete(int lno, int key){		//delete the first occurrence of key in the list starting at head
 	//error code for delete function is -2 (as -1 means that the the operation was successful, but list has now become empty)
-	if(head==-1)	//list empty
+	int head = get_head(lno);
+	if(head == -2){		//When no such list exists
 		return -2;
+	}
+	if(head==-1)	//list empty
+		return -1;
 	if(get_key(head) == key){	//if the first element is to be deleted
 		int newhead = get_next(head);
 		if(newhead != -1)
 			set_prev(newhead,-1);
 		push(head);		//add deleted node to the free_list
-		return newhead;	//return the modified list's head
+		set_head(lno,newhead);	//set the modified list's head
+		return 0;	
 	}
 	for(int node = head; get_next(node) != -1; node = get_next(node)){
 		if(get_key(get_next(node)) == key){
@@ -122,10 +198,11 @@ int delete(int head, int key){		//delete the first occurrence of key in the list
 			if(get_next(node) != -1)
 				set_prev(get_next(node),node);
 			push(delnode);	//push the delnode to the free_list
-			return head;	//head is unchanged as intermediate node is deleted
+			set_head(lno,head);
+			return 0;	//head is unchanged as intermediate node is deleted
 		}
 	}
-	return -2;	//no node found with key value same as passed key value
+	return -1;	//no node found with key value same as passed key value
 }
 int count_nodes(int head){		//to count number of nodes of the given list
 	int ct = 0;
@@ -136,6 +213,10 @@ int count_nodes(int head){		//to count number of nodes of the given list
 	}
 	return ct;
 }
+int count_nodes_lno(int lno){
+	return count_nodes(get_head(lno));
+}
+
 int count_total(){		//count total non-free nodes in the memory
 	return ((ram_size/3) - count_nodes(free_list));
 }
@@ -156,6 +237,17 @@ void display(int head){		//to display all nodes of the given list
 
 	
 }
+
+void displayAll(){
+	if(next_list_num==0)
+		printf("NO LISTS MADE SO FAR!\n");
+	for(int lno = 0; lno<next_list_num;lno++){
+		printf("Elements of list-%d are:\n",lno);
+		display(get_head(lno));	
+		printf("\n");
+	}
+}
+
 void displayFree(){		//to display nodes of the free_list
 	// display(free_list);
 	printf("Elements of free list are:\n[");
@@ -165,7 +257,8 @@ void displayFree(){		//to display nodes of the free_list
 	printf(" ]\n");
 }
 
-int defrag(int *list_seq,int n){
+int defrag(){	//to perform defragmentation
+	int n = next_list_num;
 	for(int node = free_list; node != -1; node = get_next(node)){
 		set_key(node,INT_MIN);
 	}
